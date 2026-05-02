@@ -27,6 +27,8 @@ class Chat < ApplicationRecord
     /access token/i
   ].freeze
 
+  ASSISTANT_RESPONSE_DELAY = 2.seconds
+
   belongs_to :user
 
   has_one :viewer, class_name: "User", foreign_key: :last_viewed_chat_id, dependent: :nullify # "Last chat user has viewed"
@@ -102,7 +104,9 @@ class Chat < ApplicationRecord
 
   def ask_assistant_later(message)
     clear_error
-    AssistantResponseJob.perform_later(message)
+    # Give the client time to subscribe to the chat's Turbo stream before the
+    # AssistantMessage broadcast fires, otherwise the UI can miss it.
+    AssistantResponseJob.set(wait: ASSISTANT_RESPONSE_DELAY).perform_later(message)
   end
 
   def ask_assistant(message)
